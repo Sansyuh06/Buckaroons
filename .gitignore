@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+venv/
+.venv/
+
+# Large media files
+*.mp4
+*.wav
+*.mp3
+*.avi
+*.mkv
+*.webm
+
+# Large datasets & binaries
+quantum/
+*.pdf
+*.exe
+*.obj
+*.o
+
+# Nested repositories (cloned tools)
+MoneyPrinterTurbo/
+vid-clipper/
+
+# Factory outputs and temporary task logs
+output/tasks/
+output/logs/
+output/test_*/
+output/ready/
+*.log
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
