@@ -1,0 +1,9 @@
+{
+  "schedule_days": 3,
+  "auto_publish": false,
+  "edge_tts_voice": "en-US-AndrewMultilingualNeural",
+  "ollama_model": "qwen3:8b",
+  "pexels_api_key": "",
+  "skip_mpt": false,
+  "skip_clipper": false
+}
