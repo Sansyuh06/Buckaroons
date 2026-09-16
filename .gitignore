@@ -30,6 +30,7 @@ output/tasks/
 output/logs/
 output/test_*/
 output/ready/
+output/images/
 *.log
 
 # IDE & OS

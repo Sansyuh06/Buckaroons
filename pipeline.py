@@ -256,9 +256,48 @@ def run_one_video(seed: Optional[int] = None, config: Optional[dict] = None) -> 
             shutil.copy2(final_video, ready_video)
             logger.info(f"Ready: {ready_video}")
 
+            if narration_path and narration_path.exists():
+                ready_wav = ready_dir / f"{ready_name}.wav"
+                shutil.copy2(narration_path, ready_wav)
+                logger.info(f"Ready WAV: {ready_wav}")
+
             for clip in short_clips:
                 if clip.exists():
                     shutil.copy2(clip, ready_dir / f"{ready_name}_{clip.name}")
+
+        # Clean up temporary logs, caches, and intermediate downloads
+        # Keep ONLY: images generated, final video, and wav file
+        try:
+            import shutil
+            log_dir = OUTPUT_ROOT / "logs"
+            if log_dir.exists():
+                for f in log_dir.glob("*"):
+                    try:
+                        if f.is_file():
+                            f.unlink()
+                    except Exception:
+                        pass
+            downloads_dir = VID_CLIPPER_DIR / "downloads"
+            if downloads_dir.exists():
+                for item in downloads_dir.glob("*"):
+                    try:
+                        if item.is_dir():
+                            shutil.rmtree(item, ignore_errors=True)
+                        else:
+                            item.unlink()
+                    except Exception:
+                        pass
+            mpt_tasks = MPT_DIR / "storage" / "tasks"
+            if mpt_tasks.exists():
+                for item in mpt_tasks.glob("*"):
+                    try:
+                        if item.is_dir():
+                            shutil.rmtree(item, ignore_errors=True)
+                    except Exception:
+                        pass
+            logger.info("Cleaned temporary logs and cache. Preserved: output/images/, output/ready/ videos & wav.")
+        except Exception as cleanup_err:
+            logger.warning(f"Non-critical cleanup notice: {cleanup_err}")
 
         logger.info("✅ Pipeline completed successfully!")
 

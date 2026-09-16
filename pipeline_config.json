@@ -3,6 +3,12 @@
   "auto_publish": false,
   "edge_tts_voice": "en-US-AndrewMultilingualNeural",
   "ollama_model": "qwen3:8b",
+  "bgm_type": "custom",
+  "bgm_file": "ambient_lofi.mp3",
+  "bgm_volume": 0.10,
+  "video_clip_duration": 2,
+  "subtitle_position": "custom",
+  "custom_position": 52.0,
   "pexels_api_key": "",
   "skip_mpt": false,
   "skip_clipper": false

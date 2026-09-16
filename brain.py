@@ -178,7 +178,7 @@ def ingest_pdfs(pdf_dir: Path = QUANTUM_DIR, output_root: Path = OUTPUT_ROOT) ->
 # ===========================================================================
 
 def _ollama_generate(prompt: str, system: str = "", seed: int = 42,
-                     temperature: float = 0.7) -> str:
+                     temperature: float = 0.7, json_format: bool = False) -> str:
     """Call Ollama generate API. Returns the response text."""
     payload = {
         "model": OLLAMA_MODEL,
@@ -190,6 +190,8 @@ def _ollama_generate(prompt: str, system: str = "", seed: int = 42,
             "num_predict": 4096,
         },
     }
+    if json_format:
+        payload["format"] = "json"
     if system:
         payload["system"] = system
 
@@ -372,43 +374,40 @@ def write_script(topic: dict, library_index_path: Path,
         excerpt_text += f"\n--- Page {ex['page']} (relevance: {ex['score']}) ---\n{ex['text']}\n"
 
     system = (
-        "You are an expert science script writer. You write narration scripts for "
-        "short educational videos (60-180 seconds). Your scripts follow the format: "
-        "misconception → why it's wrong → the real mechanism. "
-        "CRITICAL: Every factual claim MUST come from the provided excerpts. "
-        "Do NOT invent or hallucinate facts. Cite page numbers."
+        "You are a master science communicator and edutainment creator (like Kurzgesagt, Veritasium, or 3Blue1Brown). "
+        "You write high-retention video scripts that explain deep quantum computing concepts to people with ZERO background in computing. "
+        "Explain like you're talking to a curious friend using vivid, everyday visual analogies (light switches, spinning coins, mazes). "
+        "NEVER mention page numbers, textbook citations, author names, or academic meta-language. "
+        "Speak directly, naturally, and energetically to the audience."
     )
 
-    # Target ~150 words per minute of video
-    target_words = int((target_secs / 60) * 150)
+    # Target ~130-150 words per minute
+    target_words = max(80, int((target_secs / 60) * 140))
 
     prompt = f"""Topic: {topic_text}
-Angle: {angle}
+Core Concept to Explain: {angle}
 Target: ~{target_words} words ({target_secs} seconds of narration)
-Source PDF: {pdf_path.name}
 
-Here are the relevant excerpts from the source PDF:
+Relevant Scientific Background from Textbook:
 {excerpt_text}
 
-Write a narration script following this structure:
-1. HOOK: Start with the common misconception (grab attention)
-2. DEBUNK: Explain why this misconception is wrong
-3. TRUTH: Explain the real mechanism, using specific details from the excerpts
-4. TAKEAWAY: End with a memorable insight
+Write an engaging, high-retention edutainment script following this structure:
+1. HOOK: Start with an intriguing question or counterintuitive mystery that grabs attention immediately.
+2. EVERYDAY ANALOGY: Explain with an everyday visual metaphor (e.g. an ordinary light switch can only be ON or OFF, but a spinning coin is both heads and tails at once until it lands).
+3. THE QUANTUM SECRET: Explain what actually happens in reality based on the textbook's principles (superposition, measurement collapse) without using scary equations or academic jargon.
+4. MIND-BLOWING TAKEAWAY: Why this changes the future of technology and computing power.
 
-RULES:
-- Write naturally, as if speaking to camera
-- Every factual claim must come from the excerpts above
-- Target approximately {target_words} words
-- Use simple language — explain like the viewer is smart but not a physicist
+CRITICAL RULES:
+- The audience has NO background in computing. Everything must make intuitive sense.
+- DO NOT include page numbers, textbook citations, author names, or chapters anywhere in the script.
+- No meta comments like 'In this video' or 'According to page 51'. Just start directly with the spoken hook.
+- Use natural conversational rhythm, short punchy sentences, and high curiosity.
+- Target approximately {target_words} words.
 
 Respond with ONLY a JSON object:
 {{
-  "script": "<the full narration script text>",
-  "sources": [
-    {{"pdf": "<filename>", "page": <page_number>, "quote": "<brief relevant quote>"}}
-  ],
-  "keywords": ["<5-8 search keywords for finding relevant video footage>"],
+  "script": "<the spoken narration script text>",
+  "keywords": ["<5-8 search keywords>"],
   "aspect": "9:16",
   "estimated_seconds": <int>
 }}
@@ -589,15 +588,32 @@ def produce_video(script_data: dict, narration_path: Path, topic: dict,
             local_dir = MPT_DIR / "storage" / "local_videos"
             local_files = sorted(list(local_dir.glob("*.mp4")))
             if not local_files:
-                setup_script = Path(__file__).parent / "setup_local_materials.py"
+                setup_script = Path(__file__).parent / "scratch" / "build_visual_library.py"
                 if setup_script.exists():
                     subprocess.run([sys.executable, str(setup_script)], check=False)
                 local_files = sorted(list(local_dir.glob("*.mp4")))
             video_materials = [
-                {"provider": "local", "url": f.name, "duration": 15}
+                {"provider": "local", "url": f.name, "duration": 3}
                 for f in local_files
             ]
             logger.info(f"Using {len(video_materials)} local video background materials")
+
+        # Load pipeline config overrides if present
+        cfg_file = Path(r"D:\fyeshi\project\buckaroon\pipeline_config.json")
+        cfg_data = {}
+        if cfg_file.exists():
+            try:
+                with open(cfg_file, "r", encoding="utf-8") as f:
+                    cfg_data = json.load(f)
+            except Exception:
+                pass
+
+        bgm_type = cfg_data.get("bgm_type", "custom")
+        bgm_file = cfg_data.get("bgm_file", "ambient_lofi.mp3")
+        bgm_vol = float(cfg_data.get("bgm_volume", 0.10))
+        clip_dur = int(cfg_data.get("video_clip_duration", 2))
+        sub_pos = cfg_data.get("subtitle_position", "custom")
+        custom_pos = float(cfg_data.get("custom_position", 52.0))
 
         payload = {
             "video_subject": topic_name,
@@ -605,11 +621,19 @@ def produce_video(script_data: dict, narration_path: Path, topic: dict,
             "video_terms": keywords,
             "video_aspect": "9:16",
             "subtitle_enabled": True,
-            "bgm_type": "random",
-            "bgm_volume": 0.15,
+            "subtitle_position": sub_pos,
+            "custom_position": custom_pos,
+            "subtitle_animation": "pop_spring",
+            "font_size": 60,
+            "stroke_color": "#000000",
+            "stroke_width": 2.5,
+            "text_fore_color": "#FFFFFF",
+            "bgm_type": bgm_type,
+            "bgm_file": bgm_file,
+            "bgm_volume": bgm_vol,
             "video_source": video_source,
             "video_count": 1,
-            "video_clip_duration": 5,
+            "video_clip_duration": clip_dur,
             "voice_name": EDGE_TTS_VOICE,
             "voice_volume": 1.0,
             "voice_rate": 1.0,
@@ -754,8 +778,28 @@ Each clip should be 15-60 seconds long.
 
 /no_think"""
 
-    response = _ollama_generate(prompt, system=system, seed=42, temperature=0.3)
-    recommendations = _extract_json_from_response(response)
+    response = ""
+    try:
+        response = _ollama_generate(prompt, system=system, seed=42, temperature=0.3, json_format=True)
+        recommendations = _extract_json_from_response(response)
+    except Exception as e:
+        logger.warning(f"Failed to parse LLM JSON for clips: {e}. Falling back to timestamp extractor.")
+        matches = re.findall(r"(\d+:\d+)\s*[–-]\s*(\d+:\d+)", response)
+        clips = []
+        for idx, (m_start, m_end) in enumerate(matches):
+            clips.append({
+                "clip_number": idx + 1,
+                "start_time": _parse_timestamp(m_start),
+                "end_time": _parse_timestamp(m_end),
+                "title": f"Clip {idx + 1}"
+            })
+        if not clips:
+            clips = [
+                {"clip_number": 1, "start_time": 0.0, "end_time": min(25.0, video_duration), "title": "The Hook"},
+                {"clip_number": 2, "start_time": min(20.0, video_duration), "end_time": min(50.0, video_duration), "title": "The Quantum Analogy"},
+                {"clip_number": 3, "start_time": min(45.0, video_duration), "end_time": video_duration, "title": "The Quantum Future"}
+            ]
+        recommendations = {"clips": clips}
 
     # Validate and fix timestamps
     clips = recommendations.get("clips", [])
